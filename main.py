@@ -1,4 +1,5 @@
 import csv
+import xlrd
 import sys
 import numpy
 from pprint import pprint 
@@ -31,11 +32,12 @@ class Sentence:
         self.orig_text = orig_text
 
     def display(self):
+        print("UID: " + "{}-{}-{}-{}".format(self.art_id, self.source, self.subj_id, self.sent_id))
         print("art id: " + str(self.art_id))
         print("source: " + str(self.source))
         print("subj-sent id: " + str(self.subj_id) + '-' + str(self.sent_id))
-        print("original text: ", self.orig_text)
-        print("text: ", self.words)
+        print("original text: " + self.orig_text)
+        print(self.words)
         print("number of words: " + str(self.nw))
 
     def word2vec(self, model):
@@ -59,10 +61,10 @@ class Sentence:
         numpy.save(filename, self.sumvec)
         print("Saving to " + filename)
         print("-"*100)
-        # also save word vectors
-        for ct, vec in enumerate(self.wordvecs):
-            filename = "vec/word_" + str(self.art_id) + "_" + str(self.source) + "_" + str(self.subj_id) + "_" + str(self.sent_id) + "_" + str(ct) + ".npy"
-            numpy.save(filename, vec)
+#        # also save word vectors
+#        for ct, vec in enumerate(self.wordvecs):
+#            filename = "vec/word_" + str(self.art_id) + "_" + str(self.source) + "_" + str(self.subj_id) + "_" + str(self.sent_id) + "_" + str(ct) + ".npy"
+#            numpy.save(filename, vec)
 
     def loadVec(self):
         '''load word and sum vectors according to default names, this saves the labor of loading word2Vec model again'''
@@ -100,15 +102,16 @@ class Document:
                         sent_class = Sentence(cp.deepcopy(sent), cp.deepcopy(new_sent), art_id, subj_id, ct_sent, source)
                         self.sentences.append(cp.deepcopy(sent_class))
         crowd_file.close()
-
-        school_file = open(school_csvfile,'rt')
-        school_reader = csv.reader(school_file)
-        for ct,row in enumerate(school_reader):
+        
+        school_file = xlrd.open_workbook(school_csvfile)
+        sh = school_file.sheet_by_index(0)
+        for ct in range(sh.nrows):
             if ct != 0:
-                art_id = int(row[0])
+                row = sh.row(ct)
+                art_id = int(row[0].value)
                 subj_id = ct - 1 # ignore the first line
 
-                wiki_res = row[5]
+                wiki_res = row[5].value.encode('ascii','ignore')
                 wikis = re.split('\n|\.|;|\?|!',wiki_res) 
                 source = 1
                 for ct_sent, sent in enumerate(wikis):
@@ -121,7 +124,7 @@ class Document:
                         sent_class = Sentence(cp.deepcopy(sent), cp.deepcopy(new_sent), art_id, subj_id, ct_sent, source)
                         self.sentences.append(cp.deepcopy(sent_class))
 
-                book_res = row[6]
+                book_res = row[6].value.encode('ascii','ignore')
                 books = re.split('\n|\.|;|\?|!',book_res) 
                 source = 2
                 for ct_sent, sent in enumerate(books):
@@ -133,7 +136,6 @@ class Document:
                     if len(new_sent) > 1:
                         sent_class = Sentence(cp.deepcopy(sent), cp.deepcopy(new_sent), art_id, subj_id, ct_sent, source)
                         self.sentences.append(cp.deepcopy(sent_class))
-        school_file.close()
 
     def buildSaveVec(self):
         '''for each sentence in document, do word2vec and save'''
@@ -160,23 +162,27 @@ class Document:
             print(dict0[sorted_dict0[i][0]], sorted_dict0[i][1])
            
 if __name__ == '__main__':
-    doc = Document("data/parsed_data.csv", "data/wiki.csv")
+    doc = Document("data/parsed_data.csv", "data/wiki.xlsx")
 #    doc.frequency()
     # only need to call this once when constructing vectors
     doc.buildSaveVec()
     doc.loadVec()
     
-#    vecs = []
-#    ids = []
-#    art_ids = []
-#    for sent in doc.sentences:
-#        vecs.append(sent.sumvec)
-#        ids.append(str(sent.subj_id) + '-' + str(sent.sent_id))
-#        art_ids.append(sent.art_id)
-#    
-#    print("Now running TSNE.......")
-#    tsne = TSNE(n_components=2, init = 'pca', random_state=0)
-#    embed = tsne.fit_transform(vecs)
-#    numpy.save("result/all_cloud.npy", embed)
-#    numpy.save("result/all_ids.npy", ids)
-#    numpy.save("result/all_art_ids.npy", art_ids)
+    vecs = []
+    sent_ids = []
+    art_ids = []
+    sources = []
+    for sent in doc.sentences:
+        vecs.append(sent.sumvec)
+        sent_ids.append(str(sent.subj_id) + '-' + str(sent.sent_id))
+        art_ids.append(sent.art_id)
+        sources.append(sent.source)
+    
+    print("Now running TSNE.......")
+    tsne = TSNE(n_components=2, init = 'pca', random_state=0)
+    #tsne = TSNE(n_components=2, random_state=0)
+    embed = tsne.fit_transform(vecs)
+    numpy.save("result/all_embed.npy", embed)
+    numpy.save("result/all_sent_ids.npy", sent_ids)
+    numpy.save("result/all_art_ids.npy", art_ids)
+    numpy.save("result/all_sources.npy", sources)
