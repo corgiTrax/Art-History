@@ -179,7 +179,7 @@ if __name__ == '__main__':
         sources.append(sent.source)
     
     print("Now running TSNE.......")
-    tsne = TSNE(n_components=2, init = 'pca', random_state=0)
+    tsne = TSNE(n_components=2, init = 'pca', random_state=3)
     #tsne = TSNE(n_components=2, random_state=0)
     embed = tsne.fit_transform(vecs)
     numpy.save("result/all_embed.npy", embed)
